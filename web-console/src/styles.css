@@ -43,8 +43,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 
 .workspace { min-width: 0; }
 .topbar { height: 72px; padding: 0 32px; display: flex; align-items: center; justify-content: flex-end; gap: 24px; }
-.connection { display: flex; align-items: center; gap: 9px; color: #22314e; font-size: 14px; }
+.connection { display: flex; align-items: center; gap: 9px; color: #22314e; font-size: 14px; border: 0; background: transparent; padding: 8px; border-radius: 7px; }
+.connection.is-disconnected { cursor: pointer; color: #8a5c00; background: #fff9ea; }
 .connection > span { width: 11px; height: 11px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(25, 168, 102, .08); }
+.connection.is-disconnected > span { background: #e6a400; box-shadow: 0 0 0 4px rgba(230, 164, 0, .09); }
 .connection i { font-style: normal; color: #a5afbf; margin-inline: 2px; }
 .connection b { font-weight: 500; }
 .user-area { position: relative; }
@@ -130,12 +132,15 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 .health-summary strong { font-size: 18px; }
 .health-summary p { margin: 5px 0 0; color: #5e726a; font-size: 13px; }
 .health-summary > span { color: #71847d; font-size: 12px; }
+.health-summary.is-warning { background: #fff9ea; border-color: #f0dfac; }
+.health-summary.is-warning .health-orb { color: #cf8b00; }
 .health-orb { width: 46px; height: 46px; border-radius: 50%; background: white; color: var(--green); display: grid; place-items: center; }
 .health-row, .settings-group { min-height: 74px; padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line-soft); }
 .health-row:last-child, .settings-group:last-child { border-bottom: 0; }
 .health-row > div, .settings-group > div { display: flex; flex-direction: column; gap: 5px; }
 .health-row > div span, .settings-group > div span { color: var(--muted); font-size: 12px; }
 .health-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--green); font-size: 13px; font-weight: 600; }
+.health-badge.is-warning { color: #bd7c00; }
 .settings-panel { max-width: 760px; }
 .switch { width: 46px; height: 26px; padding: 3px; border: 0; border-radius: 999px; background: #c7d0de; cursor: pointer; transition: .2s; }
 .switch span { display: block; width: 20px; height: 20px; border-radius: 50%; background: white; transition: transform .2s; box-shadow: 0 1px 3px rgba(20, 33, 54, .2); }

@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { mockApi } from "./mock-api";
 
 const artifactDir = "qa-artifacts";
 
 test("desktop console matches the selected information architecture and core flow", async ({ page }) => {
+  await mockApi(page);
   const consoleErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -26,6 +28,11 @@ test("desktop console matches the selected information architecture and core flo
   await page.getByRole("button", { name: "添加股票" }).click();
   await expect(page.getByText("META", { exact: true })).toBeVisible();
   await expect(page.getByRole("status")).toContainText("META 已加入跟踪列表");
+
+  const aaplRow = page.getByText("AAPL", { exact: true }).locator("xpath=ancestor::div[contains(@class,'stock-row')]");
+  await aaplRow.getByRole("button", { name: "AAPL 更多操作" }).click();
+  await aaplRow.getByRole("button", { name: "同步 IBKR 数据" }).click();
+  await expect(page.getByRole("status")).toContainText("AAPL 已同步");
 
   const pltrRow = page.getByText("PLTR", { exact: true }).locator("xpath=ancestor::div[contains(@class,'stock-row')]");
   await pltrRow.getByRole("button", { name: "继续" }).click();
@@ -63,6 +70,7 @@ test("desktop console matches the selected information architecture and core flo
 });
 
 test("narrow layout keeps the primary controls usable", async ({ page }) => {
+  await mockApi(page);
   const consoleErrors = [];
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
