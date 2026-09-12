@@ -69,6 +69,7 @@ def make_client(tmp_path):
     settings = Settings(
         database_path=tmp_path / "accuflow-test.db",
         ibkr_connect_on_startup=False,
+        initial_symbols="",
     )
     app = create_app(settings, ibkr_factory=FakeIBKRClient)
     return TestClient(app)
@@ -164,3 +165,24 @@ def test_reports_are_persisted_and_searchable(tmp_path):
         assert len(persisted.json()) == 1
         assert persisted.json()[0]["id"] == "closing-20260911"
 
+
+def test_initial_watchlist_is_seeded_only_once(tmp_path):
+    database_path = tmp_path / "watchlist.db"
+    settings = Settings(
+        database_path=database_path,
+        initial_symbols="AAPL,NVDA",
+        ibkr_connect_on_startup=False,
+    )
+    app = create_app(settings, ibkr_factory=FakeIBKRClient)
+
+    with TestClient(app) as client:
+        assert [item["symbol"] for item in client.get("/api/stocks").json()] == [
+            "AAPL",
+            "NVDA",
+        ]
+        assert client.delete("/api/stocks/AAPL").status_code == 204
+        assert client.delete("/api/stocks/NVDA").status_code == 204
+
+    restarted_app = create_app(settings, ibkr_factory=FakeIBKRClient)
+    with TestClient(restarted_app) as restarted_client:
+        assert restarted_client.get("/api/stocks").json() == []

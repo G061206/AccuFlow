@@ -37,6 +37,8 @@ Windows PowerShell 对应命令为 `.venv\Scripts\python.exe -m pip install -e "
 
 真实连接前请启动 IB Gateway 或 TWS，启用 Socket API，并在 `.env` 中确认端口。默认值 `4002` 对应常见的 IB Gateway paper 会话；所有连接固定使用 `readonly=True`，项目没有订单接口。
 
+首次启动会把 `ACCUFLOW_INITIAL_SYMBOLS` 写入 SQLite，目前默认为 `AAPL,NVDA`。初始化标记也会持久化，因此用户之后删除股票不会在服务重启时被自动恢复。
+
 当前 API 支持：
 
 - `/api/stocks`：跟踪股票增删、暂停和恢复

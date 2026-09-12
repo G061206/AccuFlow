@@ -370,6 +370,28 @@ class Database:
             )
             await self.connection.commit()
 
+    async def get_system_state(self, key: str) -> str | None:
+        row = await (
+            await self.connection.execute(
+                "SELECT value FROM system_state WHERE key = ?", (key,)
+            )
+        ).fetchone()
+        return str(row["value"]) if row else None
+
+    async def set_system_state(self, key: str, value: str) -> None:
+        async with self._write_lock:
+            await self.connection.execute(
+                """
+                INSERT INTO system_state(key, value, updated_at)
+                VALUES(?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+                """,
+                (key, value, utc_now()),
+            )
+            await self.connection.commit()
+
     @staticmethod
     def _serialize_timestamp(value: datetime | date | str) -> str:
         if isinstance(value, (datetime, date)):

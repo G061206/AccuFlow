@@ -24,6 +24,20 @@ from accuflow.services.market_data import MarketDataService
 from accuflow.storage.database import Database
 
 logger = logging.getLogger(__name__)
+INITIAL_WATCHLIST_STATE_KEY = "initial_watchlist_seeded"
+
+
+async def seed_initial_watchlist(
+    database: Database, symbols: list[str]
+) -> None:
+    if await database.get_system_state(INITIAL_WATCHLIST_STATE_KEY) is not None:
+        return
+    for symbol in symbols:
+        if await database.get_stock(symbol) is None:
+            await database.create_stock(symbol)
+    await database.set_system_state(
+        INITIAL_WATCHLIST_STATE_KEY, ",".join(symbols)
+    )
 
 
 def stock_response(stock: dict[str, Any]) -> dict[str, Any]:
@@ -81,6 +95,9 @@ def create_app(
     async def lifespan(app: FastAPI):
         database = Database(resolved_settings.database_path)
         await database.connect()
+        await seed_initial_watchlist(
+            database, resolved_settings.initial_symbol_list
+        )
         ibkr = ibkr_factory(resolved_settings, database)
         app.state.database = database
         app.state.ibkr = ibkr
@@ -245,4 +262,3 @@ def create_app(
 
 
 app = create_app()
-

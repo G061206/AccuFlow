@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     database_path: Path = Path("data/accuflow.db")
+    initial_symbols: str = "AAPL,NVDA"
 
     ibkr_host: str = "127.0.0.1"
     ibkr_port: int = Field(default=4002, ge=1, le=65535)
@@ -29,8 +30,15 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = Field(default=8000, ge=1, le=65535)
 
+    @property
+    def initial_symbol_list(self) -> list[str]:
+        return [
+            symbol.strip().upper()
+            for symbol in self.initial_symbols.split(",")
+            if symbol.strip()
+        ]
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
