@@ -43,7 +43,7 @@ function initialTheme() {
 }
 
 function AppLogo() {
-  return <div className="wordmark">AccuFlow</div>;
+  return <div className="wordmark">Accu<span>Flow</span></div>;
 }
 
 function StatusPill({ status }) {

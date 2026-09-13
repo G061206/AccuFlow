@@ -11,7 +11,7 @@ Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts
 ## AccuFlow visual target
 
 - Source of truth: `reference-option-1.png`, selected by the user on 2026-09-12.
-- Preserve the calm light operations-console direction: slim left navigation, a tracked-stock table as the primary surface, and recent reports as the secondary surface.
+- Preserve the calm operations-console direction: slim left navigation, a tracked-stock table as the primary surface, and recent reports as the secondary surface.
 - Use one unified score and never introduce A/B modes, product tiers, brokerage positions, P&L, or order-entry controls.
 - Keep IBKR connection and data-freshness status visible without turning the product into a dense trading terminal.
-- Support both light and dark interface themes, defaulting to the system preference and remembering the user's explicit choice.
+- Use an IBKR-inspired red-and-black visual system in both light and dark themes, defaulting to the system preference and remembering the user's explicit choice.
