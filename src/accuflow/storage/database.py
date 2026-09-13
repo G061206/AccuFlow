@@ -40,6 +40,10 @@ class Database:
             "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, ?)",
             (utc_now(),),
         )
+        await self._connection.execute(
+            "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(2, ?)",
+            (utc_now(),),
+        )
         await self._connection.commit()
 
     async def close(self) -> None:
@@ -218,6 +222,83 @@ class Database:
             )
         ).fetchall()
         return [dict(row) for row in rows]
+
+    async def save_capability_report(
+        self, report: dict[str, Any]
+    ) -> dict[str, Any]:
+        async with self._write_lock:
+            await self.connection.execute(
+                """
+                INSERT INTO capability_reports(
+                    id, symbol, con_id, checked_at, snapshot_status,
+                    market_data_type, historical_bars_status,
+                    historical_bars_count, historical_ticks_status,
+                    historical_ticks_count, tick_by_tick_last_status,
+                    tick_by_tick_bidask_status, details_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    report["id"],
+                    report["symbol"],
+                    report["con_id"],
+                    report["checked_at"],
+                    report["snapshot_status"],
+                    report["market_data_type"],
+                    report["historical_bars_status"],
+                    report["historical_bars_count"],
+                    report["historical_ticks_status"],
+                    report["historical_ticks_count"],
+                    report["tick_by_tick_last_status"],
+                    report["tick_by_tick_bidask_status"],
+                    json.dumps(report["details"], ensure_ascii=False),
+                ),
+            )
+            await self.connection.commit()
+        stored = await self.get_capability_report(report["id"])
+        assert stored is not None
+        return stored
+
+    async def list_capability_reports(
+        self,
+        *,
+        symbol: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        if symbol:
+            rows = await (
+                await self.connection.execute(
+                    """
+                    SELECT * FROM capability_reports
+                    WHERE symbol = ?
+                    ORDER BY checked_at DESC
+                    LIMIT ?
+                    """,
+                    (symbol, limit),
+                )
+            ).fetchall()
+        else:
+            rows = await (
+                await self.connection.execute(
+                    """
+                    SELECT * FROM capability_reports
+                    ORDER BY checked_at DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                )
+            ).fetchall()
+        return [self._deserialize_capability_report(dict(row)) for row in rows]
+
+    async def get_capability_report(
+        self, report_id: str
+    ) -> dict[str, Any] | None:
+        row = await (
+            await self.connection.execute(
+                "SELECT * FROM capability_reports WHERE id = ?",
+                (report_id,),
+            )
+        ).fetchone()
+        return self._deserialize_capability_report(dict(row)) if row else None
 
     async def save_report(self, report: ReportCreate) -> dict[str, Any]:
         now = utc_now()
@@ -405,6 +486,13 @@ class Database:
     @staticmethod
     def _optional_int(value: Any) -> int | None:
         return None if value is None else int(value)
+
+    @staticmethod
+    def _deserialize_capability_report(
+        row: dict[str, Any]
+    ) -> dict[str, Any]:
+        row["details"] = json.loads(row.pop("details_json"))
+        return row
 
     @staticmethod
     def _deserialize_report(row: dict[str, Any]) -> dict[str, Any]:

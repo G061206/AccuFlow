@@ -46,6 +46,10 @@ class ReportCreate(BaseModel):
         return [normalize_symbol(value) for value in values]
 
 
+class ReportGenerateRequest(BaseModel):
+    report_type: Literal["收盘报告", "小时报告"] = "收盘报告"
+
+
 class BackfillRequest(BaseModel):
     include_daily: bool = True
     include_minute: bool = True

@@ -50,6 +50,27 @@ class FakeIBKRClient:
             "contract": contract,
         }
 
+    async def probe_capabilities(self, symbol):
+        con_id = 1000 + sum(map(ord, symbol))
+        return {
+            "id": f"capability-{symbol}-test",
+            "symbol": symbol,
+            "con_id": con_id,
+            "checked_at": "2026-09-13T13:32:00+00:00",
+            "snapshot_status": "available",
+            "market_data_type": 1,
+            "historical_bars_status": "available",
+            "historical_bars_count": 5,
+            "historical_ticks_status": "available",
+            "historical_ticks_count": 1,
+            "tick_by_tick_last_status": "requested_no_sample",
+            "tick_by_tick_bidask_status": "requested_no_sample",
+            "details": {
+                "market_data_type_label": "live",
+                "snapshot": {"values": {"last": 102}},
+            },
+        }
+
     async def historical_bars(self, *, contract, duration, bar_size, use_rth=True):
         return [
             {
@@ -102,6 +123,18 @@ def test_stock_lifecycle_and_ibkr_backfill(tmp_path):
         qualified = client.post("/api/stocks/AAPL/qualify")
         assert qualified.status_code == 200
         assert qualified.json()["conId"] is not None
+        capability = client.post("/api/stocks/AAPL/probe")
+        assert capability.status_code == 200
+        assert capability.json()["snapshot_status"] == "available"
+        assert capability.json()["market_data_type"] == 1
+
+        capabilities = client.get(
+            "/api/ibkr/capabilities", params={"symbol": "aapl"}
+        )
+        assert capabilities.status_code == 200
+        assert [item["symbol"] for item in capabilities.json()] == ["AAPL"]
+        assert capabilities.json()[0]["details"]["market_data_type_label"] == "live"
+
 
         backfill = client.post(
             "/api/stocks/AAPL/backfill",
@@ -116,6 +149,15 @@ def test_stock_lifecycle_and_ibkr_backfill(tmp_path):
         assert daily_bars.status_code == 200
         assert len(daily_bars.json()) == 1
         assert daily_bars.json()[0]["source"] == "IBKR"
+        generated = client.post(
+            "/api/reports/generate",
+            json={"report_type": "收盘报告"},
+        )
+        assert generated.status_code == 201
+        assert generated.json()["symbols"] == ["AAPL"]
+        assert generated.json()["ruleVersion"] == "unified-v1-readiness"
+        assert "不输出建仓强度分数" in generated.json()["conclusion"]
+
 
         paused = client.patch("/api/stocks/AAPL", json={"active": False})
         assert paused.status_code == 200

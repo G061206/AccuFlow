@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from accuflow.config import Settings, get_settings
 from accuflow.domain.models import (
     BackfillRequest,
+    ReportGenerateRequest,
     ReportCreate,
     StockActiveUpdate,
     StockCreate,
@@ -21,6 +22,7 @@ from accuflow.providers.ibkr_async.client import (
     IBKRNotConnectedError,
 )
 from accuflow.services.market_data import MarketDataService
+from accuflow.services.reports import ReportService
 from accuflow.storage.database import Database
 
 logger = logging.getLogger(__name__)
@@ -102,6 +104,7 @@ def create_app(
         app.state.database = database
         app.state.ibkr = ibkr
         app.state.market_data = MarketDataService(database, ibkr)
+        app.state.report_service = ReportService(database)
         if resolved_settings.ibkr_connect_on_startup:
             try:
                 await ibkr.connect()
@@ -134,6 +137,9 @@ def create_app(
 
     def market_data(request: Request) -> MarketDataService:
         return request.app.state.market_data
+    def reports_service(request: Request) -> ReportService:
+        return request.app.state.report_service
+
 
     @app.get("/api/health")
     async def health(request: Request):
@@ -216,6 +222,31 @@ def create_app(
     ):
         return await database(request).list_bars(symbol.upper(), bar_size, limit)
 
+    @app.get("/api/ibkr/capabilities")
+    async def list_capability_reports(
+        request: Request,
+        symbol: str | None = Query(default=None, max_length=12),
+        limit: int = Query(default=100, ge=1, le=500),
+    ):
+        normalized = symbol.strip().upper() if symbol else None
+        return await database(request).list_capability_reports(
+            symbol=normalized,
+            limit=limit,
+        )
+
+    @app.post("/api/stocks/{symbol}/probe")
+    async def probe_stock_capabilities(symbol: str, request: Request):
+        try:
+            return await market_data(request).probe_and_persist(
+                symbol.upper()
+            )
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="股票不存在") from exc
+        except IBKRNotConnectedError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+        except (IBKRContractError, TimeoutError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     @app.get("/api/reports")
     async def list_reports(
         request: Request,
@@ -231,6 +262,22 @@ def create_app(
             offset=offset,
         )
         return [report_response(row) for row in rows]
+
+    @app.post(
+        "/api/reports/generate",
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def generate_report(
+        payload: ReportGenerateRequest,
+        request: Request,
+    ):
+        try:
+            stored = await reports_service(request).generate(
+                payload.report_type
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        return report_response(stored)
 
     @app.get("/api/reports/{report_id}")
     async def get_report(report_id: str, request: Request):

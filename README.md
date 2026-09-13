@@ -46,4 +46,7 @@ Windows PowerShell 对应命令为 `.venv\Scripts\python.exe -m pip install -e "
 - `/api/ibkr/connect`：建立 IBKR 只读会话
 - `/api/stocks/{symbol}/qualify`：解析并保存 IBKR `conId`
 - `/api/stocks/{symbol}/backfill`：串行补充日线和 1 分钟 `TRADES` bars
+- `/api/stocks/{symbol}/probe`：探测快照、历史 bars、历史逐笔和实时 `Last/BidAsk` 能力
+- `/api/ibkr/capabilities`：查询机器可读的历次能力报告
+- `/api/reports/generate`：基于已存储 IBKR 数据生成确定性数据质量报告
 - `/api/health`：SQLite 和 IBKR 连接状态

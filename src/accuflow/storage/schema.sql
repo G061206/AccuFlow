@@ -48,6 +48,29 @@ CREATE TABLE IF NOT EXISTS market_bars (
 CREATE INDEX IF NOT EXISTS idx_market_bars_symbol_size_time
 ON market_bars(symbol, bar_size, timestamp DESC);
 
+CREATE TABLE IF NOT EXISTS capability_reports (
+    id TEXT PRIMARY KEY,
+    symbol TEXT NOT NULL,
+    con_id INTEGER NOT NULL,
+    checked_at TEXT NOT NULL,
+    snapshot_status TEXT NOT NULL,
+    market_data_type INTEGER,
+    historical_bars_status TEXT NOT NULL,
+    historical_bars_count INTEGER NOT NULL DEFAULT 0,
+    historical_ticks_status TEXT NOT NULL,
+    historical_ticks_count INTEGER NOT NULL DEFAULT 0,
+    tick_by_tick_last_status TEXT NOT NULL,
+    tick_by_tick_bidask_status TEXT NOT NULL,
+    details_json TEXT NOT NULL,
+    FOREIGN KEY (symbol) REFERENCES tracked_stocks(symbol) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_capability_reports_symbol_time
+ON capability_reports(symbol, checked_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_capability_reports_time
+ON capability_reports(checked_at DESC);
+
 CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     report_time TEXT NOT NULL,

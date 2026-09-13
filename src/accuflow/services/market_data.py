@@ -23,6 +23,13 @@ class MarketDataService:
             currency=qualified["currency"],
         )
 
+    async def probe_and_persist(self, symbol: str) -> dict[str, Any]:
+        stock = await self.database.get_stock(symbol)
+        if stock is None:
+            raise KeyError(symbol)
+        report = await self.ibkr.probe_capabilities(symbol)
+        return await self.database.save_capability_report(report)
+
     async def backfill(
         self,
         symbol: str,
