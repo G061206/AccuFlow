@@ -10,10 +10,12 @@ import {
   FileText,
   GearSix,
   MagnifyingGlass,
+  Moon,
   Pause,
   Play,
   Pulse,
   SlidersHorizontal,
+  Sun,
   Trash,
   UserCircle,
   WarningCircle,
@@ -27,6 +29,18 @@ const navItems = [
   { id: "health", label: "运行状态", icon: Pulse },
   { id: "settings", label: "设置", icon: GearSix },
 ];
+
+const THEME_STORAGE_KEY = "accuflow-theme";
+
+function initialTheme() {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    // Storage can be unavailable in hardened browser contexts.
+  }
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
 
 function AppLogo() {
   return <div className="wordmark">AccuFlow</div>;
@@ -47,12 +61,14 @@ function Signal({ stock }) {
   return <div className="signal-block"><strong>{stock.score}</strong><span className={stock.score >= 60 ? "signal-positive" : "signal-neutral"}>{stock.signal}</span></div>;
 }
 
-function Topbar({ health, onConnect }) {
+function Topbar({ health, onConnect, theme, onToggleTheme }) {
   const [userOpen, setUserOpen] = useState(false);
   const connected = Boolean(health?.ibkr?.connected);
   const serverTime = health?.ibkr?.server_time;
   const timeLabel = serverTime ? `${new Date(serverTime).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })} ET` : "已就绪";
-  return <header className="topbar"><button className={`connection ${connected ? "" : "is-disconnected"}`} onClick={connected ? undefined : onConnect}><span />{connected ? "IBKR 已连接" : "IBKR 未连接"}<i>·</i><b>{connected ? `服务器时间 ${timeLabel}` : "点击连接"}</b></button><div className="user-area"><button className="user-button" onClick={() => setUserOpen((value) => !value)} aria-expanded={userOpen}><UserCircle size={23} /><span>用户</span><CaretDown size={15} /></button>{userOpen && <div className="user-menu"><strong>AccuFlow 管理员</strong><span>本地控制台</span></div>}</div></header>;
+  const ThemeIcon = theme === "dark" ? Sun : Moon;
+  const themeLabel = theme === "dark" ? "切换到浅色模式" : "切换到深色模式";
+  return <header className="topbar"><button className={`connection ${connected ? "" : "is-disconnected"}`} onClick={connected ? undefined : onConnect}><span />{connected ? "IBKR 已连接" : "IBKR 未连接"}<i>·</i><b>{connected ? `服务器时间 ${timeLabel}` : "点击连接"}</b></button><button className="icon-button theme-toggle" onClick={onToggleTheme} aria-label={themeLabel} title={themeLabel}><ThemeIcon size={21} /></button><div className="user-area"><button className="user-button" onClick={() => setUserOpen((value) => !value)} aria-expanded={userOpen}><UserCircle size={23} /><span>用户</span><CaretDown size={15} /></button>{userOpen && <div className="user-menu"><strong>AccuFlow 管理员</strong><span>本地控制台</span></div>}</div></header>;
 }
 
 function Sidebar({ activePage, setActivePage }) {
@@ -106,10 +122,10 @@ function HealthPage({ health, onConnect }) {
   return <><PageIntro title="运行状态" description="检查唯一行情源 IBKR 和本地持久化服务。" /><section className={`health-summary ${connected ? "" : "is-warning"}`}><div><span className="health-orb">{connected ? <CheckCircle size={24} weight="fill" /> : <WarningCircle size={24} weight="fill" />}</span><div><strong>{connected ? "行情连接正常" : "IBKR 尚未连接"}</strong><p>{connected ? "只读 API 会话已建立。" : health?.ibkr?.last_error || "请确认 Gateway/TWS 已启动并开放 API 端口。"}</p></div></div>{!connected && <button className="button primary" onClick={onConnect}>连接 IBKR</button>}</section><section className="data-section health-list">{rows.map(([name, state, detail]) => { const warning = state === "未连接" || state === "异常"; return <div className="health-row" key={name}><div><strong>{name}</strong><span>{detail}</span></div><span className={`health-badge ${warning ? "is-warning" : ""}`}>{warning ? <WarningCircle size={18} weight="fill" /> : <CheckCircle size={18} weight="fill" />}{state}</span></div>; })}</section></>;
 }
 
-function SettingsPage() {
+function SettingsPage({ theme, onThemeChange }) {
   const [dailyReport, setDailyReport] = useState(true);
   const [hourlyAlert, setHourlyAlert] = useState(true);
-  return <><PageIntro title="设置" description="管理报告和提醒偏好；行情来源固定为 IBKR。" /><section className="settings-panel data-section"><div className="settings-group"><div><strong>收盘日报</strong><span>每个交易日收盘后发送完整报告</span></div><button className={`switch ${dailyReport ? "on" : ""}`} onClick={() => setDailyReport((value) => !value)} aria-pressed={dailyReport}><span /></button></div><div className="settings-group"><div><strong>小时异动提醒</strong><span>仅在新异动、显著增强或失效时发送</span></div><button className={`switch ${hourlyAlert ? "on" : ""}`} onClick={() => setHourlyAlert((value) => !value)} aria-pressed={hourlyAlert}><span /></button></div><div className="settings-group"><div><strong>行情来源</strong><span>ib_async · IBKR API · 只读连接</span></div><span className="locked-value">固定</span></div></section></>;
+  return <><PageIntro title="设置" description="管理界面、报告和提醒偏好；行情来源固定为 IBKR。" /><section className="settings-panel data-section"><div className="settings-group"><div><strong>界面主题</strong><span>选择适合当前环境的显示模式</span></div><div className="theme-options" role="group" aria-label="界面主题"><button className={theme === "light" ? "selected" : ""} onClick={() => onThemeChange("light")} aria-pressed={theme === "light"}><Sun size={17} />浅色</button><button className={theme === "dark" ? "selected" : ""} onClick={() => onThemeChange("dark")} aria-pressed={theme === "dark"}><Moon size={17} />深色</button></div></div><div className="settings-group"><div><strong>收盘日报</strong><span>每个交易日收盘后发送完整报告</span></div><button className={`switch ${dailyReport ? "on" : ""}`} onClick={() => setDailyReport((value) => !value)} aria-pressed={dailyReport}><span /></button></div><div className="settings-group"><div><strong>小时异动提醒</strong><span>仅在新异动、显著增强或失效时发送</span></div><button className={`switch ${hourlyAlert ? "on" : ""}`} onClick={() => setHourlyAlert((value) => !value)} aria-pressed={hourlyAlert}><span /></button></div><div className="settings-group"><div><strong>行情来源</strong><span>ib_async · IBKR API · 只读连接</span></div><span className="locked-value">固定</span></div></section></>;
 }
 
 function ReportDrawer({ report, onClose }) {
@@ -119,12 +135,21 @@ function ReportDrawer({ report, onClose }) {
 
 export function App() {
   const [activePage, setActivePage] = useState("stocks");
+  const [theme, setTheme] = useState(initialTheme);
   const [stocks, setStocks] = useState([]);
   const [reports, setReports] = useState([]);
   const [health, setHealth] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
   const [toast, setToast] = useState("");
   function notify(message) { setToast(message); window.setTimeout(() => setToast(""), 2400); }
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Keep the selected theme for this session when storage is unavailable.
+    }
+  }, [theme]);
   useEffect(() => {
     Promise.all([api.stocks(), api.reports(), api.health()])
       .then(([storedStocks, storedReports, currentHealth]) => {
@@ -137,5 +162,5 @@ export function App() {
   async function removeStock(symbol) { await api.removeStock(symbol); setStocks((items) => items.filter((stock) => stock.symbol !== symbol)); notify(`${symbol} 已从列表移除`); }
   async function syncStock(symbol) { try { const result = await api.backfillStock(symbol); setStocks(await api.stocks()); notify(`${symbol} 已同步：日线 ${result.stored.daily}，1分钟 ${result.stored.minute}`); } catch (error) { notify(error.message); } }
   async function connectIBKR() { try { await api.connectIBKR(); setHealth(await api.health()); notify("IBKR 只读会话已连接"); } catch (error) { setHealth(await api.health().catch(() => health)); notify(error.message); } }
-  return <div className="app-shell"><Sidebar activePage={activePage} setActivePage={setActivePage} /><div className="workspace"><Topbar health={health} onConnect={connectIBKR} /><main className="content">{activePage === "stocks" && <StocksPage stocks={stocks} reports={reports} addStock={addStock} toggleStock={toggleStock} removeStock={removeStock} syncStock={syncStock} openReport={setSelectedReport} showReports={() => setActivePage("reports")} />}{activePage === "reports" && <ReportsPage reports={reports} openReport={setSelectedReport} />}{activePage === "health" && <HealthPage health={health} onConnect={connectIBKR} />}{activePage === "settings" && <SettingsPage />}</main></div><ReportDrawer report={selectedReport} onClose={() => setSelectedReport(null)} />{toast && <div className="toast" role="status"><CheckCircle size={19} weight="fill" />{toast}</div>}</div>;
+  return <div className="app-shell"><Sidebar activePage={activePage} setActivePage={setActivePage} /><div className="workspace"><Topbar health={health} onConnect={connectIBKR} theme={theme} onToggleTheme={() => setTheme((value) => value === "dark" ? "light" : "dark")} /><main className="content">{activePage === "stocks" && <StocksPage stocks={stocks} reports={reports} addStock={addStock} toggleStock={toggleStock} removeStock={removeStock} syncStock={syncStock} openReport={setSelectedReport} showReports={() => setActivePage("reports")} />}{activePage === "reports" && <ReportsPage reports={reports} openReport={setSelectedReport} />}{activePage === "health" && <HealthPage health={health} onConnect={connectIBKR} />}{activePage === "settings" && <SettingsPage theme={theme} onThemeChange={setTheme} />}</main></div><ReportDrawer report={selectedReport} onClose={() => setSelectedReport(null)} />{toast && <div className="toast" role="status"><CheckCircle size={19} weight="fill" />{toast}</div>}</div>;
 }
