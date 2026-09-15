@@ -62,9 +62,9 @@ test("desktop console matches the selected information architecture and core flo
 
   await page.getByRole("button", { name: "设置" }).click();
   await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
-  await expect(page.locator(".switch").first()).toHaveAttribute("aria-pressed", "true");
-  await page.locator(".switch").first().click();
-  await expect(page.locator(".switch").first()).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByRole("button", { name: "收盘日报预览", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "收盘日报预览", exact: true }).click();
+  await expect(page.getByRole("button", { name: "收盘日报预览", exact: true })).toHaveAttribute("aria-pressed", "false");
 
   expect(consoleErrors, consoleErrors.join("\n")).toEqual([]);
 });

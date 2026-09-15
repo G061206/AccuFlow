@@ -15,6 +15,9 @@ const reports = [
 
 export async function mockApi(page) {
   const state = {
+    failures: {},
+    connected: true,
+    settings: { monitoring_enabled: false, daily_report: true, hourly_alert: false, delivery_mode: "preview", hourly_alert_available: true },
     stocks: structuredClone(stocks),
     reports: structuredClone(reports),
   };
@@ -23,8 +26,14 @@ export async function mockApi(page) {
     const url = new URL(request.url());
     const path = url.pathname;
     const method = request.method();
+    if (state.failures[`${method} ${path}`]) return route.fulfill({ status: 503, json: { detail: "测试服务暂不可用" } });
+    if (path === "/api/notifications/deliveries" || path === "/api/workflow/jobs" || path === "/api/notifications/outbox") return route.fulfill({ json: [] });
+    if (path === "/api/settings") {
+      if (method === "PATCH") Object.assign(state.settings, request.postDataJSON());
+      return route.fulfill({ json: state.settings });
+    }
     if (path === "/api/health") {
-      return route.fulfill({ json: { service: "ok", database: "ok", ibkr: { connected: true, host: "127.0.0.1", port: 4002, client_id: 17, server_time: "2026-09-11T17:32:00Z", last_error: null, market_data_type: 1 } } });
+      return route.fulfill({ json: { service: "ok", database: "ok", ibkr: { connected: state.connected, host: "127.0.0.1", port: 4002, client_id: 17, server_time: "2026-09-11T17:32:00Z", last_error: null, market_data_type: 1 } } });
     }
     if (path === "/api/ibkr/connect" && method === "POST") {
       return route.fulfill({ json: { connected: true } });

@@ -1,0 +1,24 @@
+{
+  "status": "needs_review",
+  "reasons": [
+    "less than one 6.5-hour observation period",
+    "Gateway/TWS not observed throughout"
+  ],
+  "duration_seconds": 119.344437,
+  "samples": 19,
+  "peak_process_rss_bytes": 247521280,
+  "peak_gateway_rss_bytes": 0,
+  "rss_growth_bytes": 38096896,
+  "database_growth_bytes": 168952,
+  "peak_process_cpu_percent": 76.1,
+  "final_delivery_queue": {
+    "preview": 1
+  },
+  "final_job_queue": {},
+  "max_event_loop_lag_seconds": 1.1253016820410267,
+  "note": "Resource checks alone do not verify real market coverage or SMTP delivery.",
+  "mode": "replay_load",
+  "replays": 19,
+  "replay_errors": [],
+  "max_iteration_seconds": 2.8678837770130485
+}

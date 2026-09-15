@@ -4,6 +4,8 @@ import asyncio
 import math
 import logging
 from dataclasses import asdict, dataclass
+from contextlib import asynccontextmanager
+from functools import wraps
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,6 +24,14 @@ MARKET_DATA_TYPE_LABELS = {
 INFORMATIONAL_ERROR_CODES = {2104, 2106, 2107, 2108, 2158}
 PERMISSION_ERROR_CODES = {354, 10089, 10167, 10168, 10189}
 
+
+
+def serialized_request(method):
+    @wraps(method)
+    async def wrapped(self, *args, **kwargs):
+        async with self.request_scope():
+            return await method(self, *args, **kwargs)
+    return wrapped
 
 
 class IBKRNotConnectedError(RuntimeError):
@@ -58,10 +68,27 @@ class IBKRClient:
             market_data_type=settings.ibkr_market_data_type,
         )
         self._connect_lock = asyncio.Lock()
+        self._request_lock = asyncio.Lock()
+        self._request_owner = None
+        self._error_sequence = 0
+        self._error_tasks = set()
         self.ib.disconnectedEvent += self._on_disconnected
         self.ib.errorEvent += self._on_error
         self._recent_errors: list[dict[str, Any]] = []
         self.ib.errorEvent += self._capture_probe_error
+
+    @asynccontextmanager
+    async def request_scope(self):
+        task = asyncio.current_task()
+        if self._request_owner is task:
+            yield
+            return
+        async with self._request_lock:
+            self._request_owner = task
+            try:
+                yield
+            finally:
+                self._request_owner = None
 
     async def connect(self) -> dict[str, Any]:
         async with self._connect_lock:
@@ -107,6 +134,7 @@ class IBKRClient:
         self.state.connected = self.ib.isConnected()
         return asdict(self.state)
 
+    @serialized_request
     async def qualify_stock(self, symbol: str) -> dict[str, Any]:
         self._ensure_connected()
         contract = Stock(symbol, "SMART", "USD")
@@ -126,6 +154,7 @@ class IBKRClient:
             "contract": result,
         }
 
+    @serialized_request
     async def historical_bars(
         self,
         *,
@@ -133,11 +162,12 @@ class IBKRClient:
         duration: str,
         bar_size: str,
         use_rth: bool = True,
+        end_date_time: datetime | str = "",
     ) -> list[dict[str, Any]]:
         self._ensure_connected()
         bars = await self.ib.reqHistoricalDataAsync(
             contract,
-            endDateTime="",
+            endDateTime=end_date_time,
             durationStr=duration,
             barSizeSetting=bar_size,
             whatToShow="TRADES",
@@ -160,6 +190,7 @@ class IBKRClient:
             for bar in bars
         ]
 
+    @serialized_request
     async def probe_capabilities(
         self,
         symbol: str,
@@ -208,23 +239,30 @@ class IBKRClient:
         }
 
     async def _probe_snapshot(self, contract: Any) -> dict[str, Any]:
-        error_cursor = len(self._recent_errors)
+        error_cursor = self._error_sequence
+        ticker = None
         try:
-            tickers = await asyncio.wait_for(
-                self.ib.reqTickersAsync(contract),
-                timeout=self.settings.ibkr_request_timeout,
-            )
-            ticker = tickers[0] if tickers else None
-        except BaseException as exc:
+            ticker = self.ib.reqMktData(contract, "", False, False)
+            deadline = asyncio.get_running_loop().time() + self.settings.ibkr_request_timeout
+            while not any(self._finite_number(getattr(ticker, name, None)) is not None
+                          for name in ("bid", "ask", "last", "close")):
+                if asyncio.get_running_loop().time() >= deadline:
+                    raise TimeoutError("snapshot probe timed out")
+                await asyncio.sleep(0.05)
+        except Exception as exc:
             return {
                 "status": "error",
                 "market_data_type": None,
                 "values": {},
-                "errors": self._errors_since(error_cursor),
+                "errors": self._errors_since(error_cursor, contract),
                 "reason": str(exc) or exc.__class__.__name__,
             }
 
-        errors = self._errors_since(error_cursor)
+        finally:
+            if ticker is not None:
+                self.ib.cancelMktData(contract)
+
+        errors = self._errors_since(error_cursor, contract)
         error_status = self._status_from_errors(errors)
         values = {
             name: self._finite_number(getattr(ticker, name, None))
@@ -246,21 +284,21 @@ class IBKRClient:
     async def _probe_historical_bars(
         self, contract: Any
     ) -> dict[str, Any]:
-        error_cursor = len(self._recent_errors)
+        error_cursor = self._error_sequence
         try:
             bars = await self.historical_bars(
                 contract=contract,
                 duration="5 D",
                 bar_size="1 day",
             )
-        except BaseException as exc:
+        except Exception as exc:
             return {
                 "status": "error",
                 "sample_count": 0,
-                "errors": self._errors_since(error_cursor),
+                "errors": self._errors_since(error_cursor, contract),
                 "reason": str(exc) or exc.__class__.__name__,
             }
-        errors = self._errors_since(error_cursor)
+        errors = self._errors_since(error_cursor, contract)
         error_status = self._status_from_errors(errors)
         return {
             "status": error_status or ("available" if bars else "no_sample"),
@@ -271,7 +309,7 @@ class IBKRClient:
     async def _probe_historical_ticks(
         self, contract: Any
     ) -> dict[str, Any]:
-        error_cursor = len(self._recent_errors)
+        error_cursor = self._error_sequence
         try:
             ticks = await asyncio.wait_for(
                 self.ib.reqHistoricalTicksAsync(
@@ -285,14 +323,14 @@ class IBKRClient:
                 ),
                 timeout=self.settings.ibkr_request_timeout,
             )
-        except BaseException as exc:
+        except Exception as exc:
             return {
                 "status": "error",
                 "sample_count": 0,
-                "errors": self._errors_since(error_cursor),
+                "errors": self._errors_since(error_cursor, contract),
                 "reason": str(exc) or exc.__class__.__name__,
             }
-        errors = self._errors_since(error_cursor)
+        errors = self._errors_since(error_cursor, contract)
         error_status = self._status_from_errors(errors)
         return {
             "status": error_status or ("available" if ticks else "no_sample"),
@@ -306,11 +344,15 @@ class IBKRClient:
         tick_type: str,
         sample_wait_seconds: float,
     ) -> dict[str, Any]:
-        error_cursor = len(self._recent_errors)
+        error_cursor = self._error_sequence
         ticker = None
         initial_count = 0
         subscribed = False
-        permission_denied = False
+        sample_count = 0
+
+        def receive_ticks(updated):
+            nonlocal sample_count
+            sample_count += len(updated.tickByTicks)
         try:
             ticker = self.ib.reqTickByTickData(
                 contract,
@@ -320,11 +362,10 @@ class IBKRClient:
             )
             subscribed = True
             initial_count = len(ticker.tickByTicks)
+            ticker.updateEvent += receive_ticks
             await asyncio.sleep(sample_wait_seconds)
-            sample_count = max(0, len(ticker.tickByTicks) - initial_count)
-            errors = self._errors_since(error_cursor)
+            errors = self._errors_since(error_cursor, contract)
             error_status = self._status_from_errors(errors)
-            permission_denied = error_status == "unavailable"
             return {
                 "status": error_status
                 or ("available" if sample_count else "requested_no_sample"),
@@ -336,21 +377,27 @@ class IBKRClient:
                     else "请求已被接受，但探测窗口内没有新逐笔；非交易时段不能据此确认实时覆盖"
                 ),
             }
-        except BaseException as exc:
+        except Exception as exc:
             return {
                 "status": "error",
                 "sample_count": 0,
-                "errors": self._errors_since(error_cursor),
+                "errors": self._errors_since(error_cursor, contract),
                 "reason": str(exc) or exc.__class__.__name__,
             }
         finally:
-            if subscribed and not permission_denied:
+            if subscribed:
+                ticker.updateEvent -= receive_ticks
                 self.ib.cancelTickByTickData(contract, tick_type)
             if ticker is not None:
                 del ticker.tickByTicks[initial_count:]
 
-    def _errors_since(self, cursor: int) -> list[dict[str, Any]]:
-        return [dict(item) for item in self._recent_errors[cursor:]]
+    def _errors_since(self, cursor: int, contract=None) -> list[dict[str, Any]]:
+        # Sequence numbers survive bounded-buffer eviction. All requests are serialized;
+        # contract filtering also excludes late errors for another instrument.
+        symbol = getattr(contract, "symbol", None)
+        return [dict(item) for item in self._recent_errors
+                if item["sequence"] > cursor and
+                (contract is None or item["symbol"] == symbol or item["request_id"] < 0)]
 
     @staticmethod
     def _status_from_errors(
@@ -369,7 +416,7 @@ class IBKRClient:
             number = float(value)
         except (TypeError, ValueError):
             return None
-        return number if math.isfinite(number) else None
+        return number if math.isfinite(number) and number > 0 else None
 
     def _capture_probe_error(
         self,
@@ -378,8 +425,10 @@ class IBKRClient:
         message: str,
         contract: Any | None,
     ) -> None:
+        self._error_sequence += 1
         self._recent_errors.append(
             {
+                "sequence": self._error_sequence,
                 "observed_at": datetime.now(UTC).isoformat(),
                 "request_id": request_id,
                 "error_code": error_code,
@@ -418,7 +467,7 @@ class IBKRClient:
             message,
         )
         try:
-            asyncio.get_running_loop().create_task(
+            task = asyncio.get_running_loop().create_task(
                 self.database.record_ibkr_error(
                     request_id=request_id,
                     error_code=error_code,
@@ -426,5 +475,16 @@ class IBKRClient:
                     symbol=symbol,
                 )
             )
+            self._error_tasks.add(task)
+            task.add_done_callback(self._error_saved)
         except RuntimeError:
             logger.debug("No running loop available to persist IBKR error")
+
+    def _error_saved(self, task):
+        self._error_tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            logger.error("Cannot persist IBKR error: %s", task.exception())
+
+    async def flush_errors(self):
+        if self._error_tasks:
+            await asyncio.gather(*list(self._error_tasks), return_exceptions=True)

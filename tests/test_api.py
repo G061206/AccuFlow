@@ -71,7 +71,7 @@ class FakeIBKRClient:
             },
         }
 
-    async def historical_bars(self, *, contract, duration, bar_size, use_rth=True):
+    async def historical_bars(self, *, contract, duration, bar_size, use_rth=True, end_date_time=""):
         return [
             {
                 "timestamp": datetime(2026, 9, 11, 20, 0, tzinfo=UTC),
@@ -155,7 +155,7 @@ def test_stock_lifecycle_and_ibkr_backfill(tmp_path):
         )
         assert generated.status_code == 201
         assert generated.json()["symbols"] == ["AAPL"]
-        assert generated.json()["ruleVersion"] == "unified-v1-readiness"
+        assert generated.json()["ruleVersion"] == "unified-v1-m2.1"
         assert "不输出建仓强度分数" in generated.json()["conclusion"]
 
 

@@ -289,3 +289,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px s
 }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+button:disabled { opacity: .55; cursor: not-allowed; }
+.request-error { padding: 12px; background: var(--surface-accent); color: var(--accent); border: 1px solid var(--line); border-radius: 7px; font-size: 13px; }
+
+.workflow-section { margin-top: 20px; }
+.workflow-empty, .notification-preview { padding: 16px 20px; font-size: 13px; color: var(--muted); }
+.notification-preview p { white-space: pre-wrap; line-height: 1.7; }
+.notification-preview summary { cursor: pointer; color: var(--ink); }
+
+.analysis-form { display: grid; gap: 14px; padding: 22px 0; }
+.analysis-form label { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+.analysis-form input:not([type="checkbox"]), .analysis-form textarea { width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; }
+.analysis-form input[type="checkbox"] { accent-color: #d9272e; }
+.analysis-form p { font-size: 13px; line-height: 1.7; }
+.report-drawer li, .report-drawer p { overflow-wrap: anywhere; }

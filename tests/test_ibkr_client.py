@@ -16,6 +16,11 @@ class FakeEvent:
         return self
 
 
+    def __isub__(self, handler):
+        self.handlers.remove(handler)
+        return self
+
+
 class FakeIB:
     def __init__(self):
         self.disconnectedEvent = FakeEvent()
@@ -45,6 +50,12 @@ class FakeIB:
         contract.description = "Apple Inc."
         contract.primaryExchange = "NASDAQ"
         return [contract]
+
+    def reqMktData(self, *args):
+        return SimpleNamespace(marketDataType=1, bid=230.1, ask=230.2, last=230.15, close=229.8)
+
+    def cancelMktData(self, contract):
+        self.cancelled_snapshot = True
 
     async def reqTickersAsync(self, contract):
         return [
@@ -81,7 +92,7 @@ class FakeIB:
     def reqTickByTickData(
         self, contract, tick_type, numberOfTicks=0, ignoreSize=False
     ):
-        return SimpleNamespace(tickByTicks=[])
+        return SimpleNamespace(tickByTicks=[], updateEvent=FakeEvent())
 
     def cancelTickByTickData(self, contract, tick_type):
         self.cancelled_tick_types.append(tick_type)

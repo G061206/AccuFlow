@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def normalize_symbol(value: str) -> str:
@@ -37,7 +37,7 @@ class ReportCreate(BaseModel):
     judgment: str = Field(min_length=1, max_length=10000)
     evidence: list[str] = Field(default_factory=list, max_length=100)
     counter_evidence: list[str] = Field(default_factory=list, max_length=100)
-    data_quality: str = Field(min_length=1, max_length=2000)
+    data_quality: str = Field(min_length=1, max_length=20000)
     rule_version: str = Field(default="unified-v1", min_length=1, max_length=50)
 
     @field_validator("symbols")
@@ -54,3 +54,21 @@ class BackfillRequest(BaseModel):
     include_daily: bool = True
     include_minute: bool = True
 
+
+    @model_validator(mode="after")
+    def require_interval(self):
+        if not self.include_daily and not self.include_minute:
+            raise ValueError("至少选择一种补数周期")
+        return self
+
+
+class Preferences(BaseModel):
+    monitoring_enabled: bool = False
+    daily_report: bool = True
+    hourly_alert: bool = False
+
+
+class PreferencesUpdate(BaseModel):
+    monitoring_enabled: bool | None = None
+    daily_report: bool | None = None
+    hourly_alert: bool | None = None
