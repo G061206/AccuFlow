@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-详细检测规则见 [`docs/detection-mechanism-v1.md`](docs/detection-mechanism-v1.md)。
+当前运行规则见 [v1 检测机制](docs/detection-mechanism-v1.md)。新版设计见 [v2：披露前的持续买方需求](docs/detection-mechanism-v2.md)：采用连续量价证据与跨日累积，按季度内提前预警、提醒负担和简单基线对照验收。v2 已实现可运行的收盘研究原型，暂不使用 13F，使用方式见 [v2 实现说明](docs/v2-implementation.md)；Web 与自动监测仍运行 v1，新模型效果尚未验证。
 
 ## 后端 API
 
@@ -111,3 +111,11 @@ accuflow soak --seconds 25200 --interval 30 --output data/session-acceptance.jso
 ```
 
 `--replay-latest` 选项额外重复计算最新固定快照，用于隔离负载验证。输出 `.jsonl` 样本与 `.json` 摘要。回放负载不是实时行情压力测试；正式验收需在 Gateway/TWS、持续行情采集与检查点任务实际运行时覆盖整个交易日，并核查覆盖率、断线恢复和队列延迟。输出路径必须是新的，避免覆盖以往记录。
+
+## GOOG 历史信号回测
+
+新增 `accuflow backtest`：使用 GOOG 与 SPY 的 IBKR 历史日线和一分钟线，按最近一年逐日收盘运行固定规则，统计每段异动首次信号后 1、5、10 个交易日的价格表现。需要额外 65 个交易日预热及单位、复权核验；无真实数据不会生成替代结果。使用独立缓存和输出目录，不发送邮件。运行方法、数据限制与统计口径见 [GOOG 回测说明](docs/goog-backtest.md)。
+
+## V2 收盘研究模型
+
+`accuflow backtest --model v2` 使用连续量价证据和 5/10/20 日窗口；`accuflow replay-v2 --input <输出目录>` 从原始行情重建并重放。默认阈值 65 为未校准实验值，缺失历史会标为不可评分。该入口使用隔离缓存，不发送邮件。详细命令、输出和当前边界见 [v2 实现说明](docs/v2-implementation.md)。
